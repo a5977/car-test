@@ -11,14 +11,14 @@
 <body><main>
 <header><h1>주차왕!</h1><span id="level">기본 주차</span></header>
 <div class="dashboard"><div class="stat"><small>스테이지</small><strong id="stage-number">1</strong></div><div class="stat"><small>남은 시간</small><strong id="time">60.0<span>초</span></strong></div><div class="stat"><small>점수</small><strong id="score">0</strong></div></div>
-<div class="stage"><canvas id="game" width="720" height="800" aria-label="자동차 주차 게임 화면"></canvas>
-<section class="overlay" id="start"><div class="card"><div class="tag">PARKING CHALLENGE</div><h2>딱 1분, 주차에 도전!</h2><p>초록색 칸에 차를 맞추고<br>칸 방향에 맞춰 <b>0.7초 정지</b>하세요.<br>전진·후진 OK · 목표 칸과 나란히 주차</p><p>성공 +100점 · 연속 두 번째부터 +150점<br>벽·장애물 충돌 −3초·−10점, 연속 기록 초기화</p><p>A·D / ←→: 전진하며 회전<br>S / ↓ + 좌우: 후진하며 회전</p><button class="primary" id="begin">주차 시작</button></div></section>
+<div class="stage"><canvas id="game" width="720" height="800" aria-label="입체 자동차 주차 게임 화면"></canvas>
+<section class="overlay" id="start"><div class="card"><div class="tag">PARKING CHALLENGE</div><h2>주차왕! 60초 챌린지</h2><p>초록색 칸에 차를 맞추고<br>칸 방향에 맞춰 <b>0.7초 정지</b>하세요.<br>운전석 시점 · 후방 미러와 목표 화살표로 안내</p><p>성공 +100점 · 연속 두 번째부터 +150점<br>벽·장애물 충돌 −3초·−10점, 연속 기록 초기화</p><p>A·D / ←→: 전진하며 회전<br>S / ↓ + 좌우: 후진하며 회전</p><button class="primary" id="begin">주차 시작</button></div></section>
 <section class="overlay" id="over" hidden><div class="card"><div class="tag">TIME UP</div><h2>주차 도전 종료!</h2><p>최종 점수</p><div class="big" id="final">0</div><button class="primary" id="again">다시 도전</button></div></section>
 </div>
 <div class="notice" id="notice" role="status" aria-live="polite">초록색 칸을 향해 출발하세요.</div>
 <div class="controls" aria-label="운전 버튼"><button class="drive" data-key="left" disabled aria-label="왼쪽으로 방향 전환"><b>↶</b>왼쪽 · A</button><button class="drive" data-key="up" disabled aria-label="전진"><b>↑</b>전진 · W</button><button class="drive" data-key="down" disabled aria-label="후진"><b>↓</b>후진 · S</button><button class="drive" data-key="right" disabled aria-label="오른쪽으로 방향 전환"><b>↷</b>오른쪽 · D</button></div>
 <button class="title-button" id="to-title" hidden>타이틀로 돌아가기</button>
-<p class="help">좌우 버튼만 누르면 전진 회전, 후진과 함께 누르면 후진 회전.<br>4단계부터 T자 → S자 → 평행주차 · 7단계부터 갓길 주차 차량</p>
+<p class="help">앞유리로 전방 확인 · 후방 미러로 뒤쪽 확인<br>좌우만 누르면 전진 회전, 후진과 함께 누르면 후진 회전.<br>4단계부터 T자 → S자 → 평행주차 · 7단계부터 삐뚤빼뚤한 갓길 차량 증가</p>
 </main>
 <script>
 'use strict';
@@ -62,17 +62,20 @@ function resetMap(){
   // Keep every original obstacle, then add separate roadside parked vehicles.
   obstacles.forEach(o=>o.kind='wall');
   let parkedCars;
+  // Crooked, intrusive parking; keep original course walls and a usable driving lane.
   if(mission==='T자 주차'){
-   parkedCars=[{x:137,y:300,w:24,h:44,a:0},
-               {x:223,y:235,w:24,h:44,a:0}];
+   parkedCars=[{x:140,y:205,a:.24},{x:140,y:270,a:-.2},{x:140,y:335,a:.18},
+               {x:220,y:235,a:-.24},{x:220,y:300,a:.21},{x:290,y:100,a:Math.PI/2+.15}];
   }else if(mission==='S자 주행'){
-   parkedCars=[{x:330,y:235,w:24,h:44,a:0},
-               {x:30,y:180,w:24,h:44,a:0},
-               {x:330,y:50,w:24,h:44,a:0}];
+   parkedCars=[{x:326,y:210,a:-.22},{x:324,y:310,a:.3},{x:275,y:350,a:.5},
+               {x:34,y:180,a:.28},{x:90,y:195,a:-.3},{x:34,y:100,a:.18},
+               {x:34,y:50,a:-.2},{x:34,y:320,a:.2}];
   }else{
-   parkedCars=[...[95,165,235,305].map(y=>({x:330,y,w:24,h:44,a:0})),
-               {x:112,y:300,w:24,h:44,a:0}];
+   parkedCars=[...[90,155,220,285,350].map((y,i)=>({x:330,y,a:i%2?.28:-.25})),
+               {x:28,y:310,a:.2},{x:107,y:310,a:-.3},{x:120,y:205,a:.2},
+               {x:112,y:105,a:.3},{x:28,y:45,a:-.18}];
   }
+  parkedCars=parkedCars.map(o=>({w:24,h:44,...o}));
   obstacles.push(...parkedCars.map(o=>({...o,kind:'car'})));
  }
  
@@ -105,32 +108,115 @@ function update(now,dt){if(state!=='playing')return;if(now>=deadline){end();retu
  if(now>messageUntil)$('notice').textContent=hold>0?'정지 유지…':'초록색 칸 방향과 나란히 주차하세요.';
 }
 function roundBox(x,y,w,h,r,color){ctx.fillStyle=color;ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fill()}
-function draw(now){ctx.setTransform(2,0,0,2,0,0);ctx.clearRect(0,0,W,H);ctx.fillStyle='#253448';ctx.fillRect(0,0,W,H);
- ctx.strokeStyle='#304257';ctx.lineWidth=1;for(let y=20;y<H;y+=28){ctx.beginPath();ctx.moveTo(8,y);ctx.lineTo(W-8,y);ctx.stroke()}
- ctx.strokeStyle='#8295aa';ctx.lineWidth=4;ctx.strokeRect(6,6,W-12,H-12);
- if(target){const t=target;ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.a);ctx.fillStyle='#60efae22';ctx.fillRect(-t.w/2,-t.h/2,t.w,t.h);ctx.strokeStyle='#72efb4';ctx.lineWidth=2;ctx.strokeRect(-t.w/2,-t.h/2,t.w,t.h);
- // Centre guide shows the required vehicle axis, including horizontal goals.
- ctx.setLineDash([4,4]);ctx.strokeStyle='#72efb477';ctx.beginPath();ctx.moveTo(0,-t.h/2+4);ctx.lineTo(0,t.h/2-4);ctx.stroke();ctx.setLineDash([]);ctx.restore();
- ctx.fillStyle='#8ef8c5';ctx.font='bold 15px system-ui';ctx.textAlign='center';ctx.fillText('P',t.x,t.y+5);
- const bottom=t.y+(Math.abs(Math.sin(t.a))*t.w+Math.abs(Math.cos(t.a))*t.h)/2;
- if(hold>0){roundBox(t.x-23,bottom+7,46,5,2,'#142235');roundBox(t.x-23,bottom+7,46*Math.min(hold/HOLD_SECONDS,1),5,2,'#70efb6')}}
- for(let i=0;i<obstacles.length;i++){
-  const o=obstacles[i];
-  if(o.kind==='car'){
-   ctx.save();ctx.translate(o.x,o.y);ctx.rotate(o.a||0);
-   const w=o.w,h=o.h;
-   roundBox(-w/2,-h/2,w,h,5,['#b57f83','#809da9','#b7b0a0'][i%3]);
-   roundBox(-w/2+4,-h/2+9,w-8,8,2,'#263b4c');
-   roundBox(-w/2+4,h/2-14,w-8,6,2,'#304555');
-   ctx.fillStyle='#ead7a4';ctx.fillRect(-w/2+3,-h/2+2,4,3);ctx.fillRect(w/2-7,-h/2+2,4,3);
-   ctx.fillStyle='#9c4148';ctx.fillRect(-w/2+3,h/2-4,4,2);ctx.fillRect(w/2-7,h/2-4,4,2);ctx.restore();
-  }else{
-   roundBox(o.x-o.w/2,o.y-o.h/2,o.w,o.h,5,o.kind==='wall'?'#526477':'#f2ae69');
-   ctx.fillStyle=o.kind==='wall'?'#728497':'#9d6234';ctx.fillRect(o.x-o.w/2+5,o.y-2,o.w-10,4);
-  }
- }
- if(car){ctx.save();ctx.translate(car.x,car.y);ctx.rotate(car.a);roundBox(-12,-11,5,9,2,'#09121e');roundBox(7,-11,5,9,2,'#09121e');roundBox(-12,7,5,8,2,'#09121e');roundBox(7,7,5,8,2,'#09121e');roundBox(-10,-17,20,34,5,now<flash&&Math.floor(now/80)%2===0?'#ff6369':'#6fb9ff');roundBox(-7,-9,14,8,2,'#183851');roundBox(-7,7,14,5,2,'#234965');ctx.fillStyle='#ffec9b';ctx.fillRect(-7,-16,4,3);ctx.fillRect(3,-16,4,3);ctx.restore()}
+
+
+// Driver eye-level perspective. The camera stays inside the car and follows its heading.
+const CAMERA={x:180,y:350,z:20,a:0},NEAR=3,PITCH=.16,FOCAL=210;
+let faces=[];
+function view3(p){
+ const dx=p.x-CAMERA.x,dy=p.y-CAMERA.y,dz=(p.z||0)-CAMERA.z;
+ const forward=dx*Math.sin(CAMERA.a)-dy*Math.cos(CAMERA.a);
+ return{u:dx*Math.cos(CAMERA.a)+dy*Math.sin(CAMERA.a),v:forward*Math.sin(PITCH)+dz*Math.cos(PITCH),depth:forward*Math.cos(PITCH)-dz*Math.sin(PITCH)};
 }
+function projectView(p){return{x:180+p.u*FOCAL/p.depth,y:160-p.v*FOCAL/p.depth,depth:p.depth}}
+function project3(p){return projectView(view3(p))}
+function interpolate3(a,b,t){return{u:a.u+(b.u-a.u)*t,v:a.v+(b.v-a.v)*t,depth:a.depth+(b.depth-a.depth)*t}}
+function clip3(points){
+ const v=points.map(view3),out=[];
+ for(let i=0;i<v.length;i++){
+  const a=v[i],b=v[(i+1)%v.length],insideA=a.depth>=NEAR,insideB=b.depth>=NEAR;
+  if(insideA)out.push(a);
+  if(insideA!==insideB)out.push(interpolate3(a,b,(NEAR-a.depth)/(b.depth-a.depth)));
+ }
+ return out.map(projectView);
+}
+function paintPoly(points,fill,stroke){
+ if(points.length<3)return;
+ ctx.beginPath();points.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.closePath();
+ if(fill){ctx.fillStyle=fill;ctx.fill()}if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=.7;ctx.stroke()}
+}
+function shade(hex,f){const n=parseInt(hex.slice(1),16);return `rgb(${[n>>16,(n>>8)&255,n&255].map(v=>Math.round(v*f)).join(',')})`}
+function vertex(r,x,y,z){const a=r.a||0,c=Math.cos(a),s=Math.sin(a);return{x:r.x+x*c-y*s,y:r.y+x*s+y*c,z}}
+function part(r,x,y,w,h,z,height,color){
+ const center=vertex(r,x,y,0),shape={x:center.x,y:center.y,a:r.a||0};
+ const v=[[-w/2,-h/2],[w/2,-h/2],[w/2,h/2],[-w/2,h/2]];
+ const bottom=v.map(([x,y])=>vertex(shape,x,y,z)),top=v.map(([x,y])=>vertex(shape,x,y,z+height));
+ const polygons=[{p:top,c:color}];
+ for(let i=0;i<4;i++)polygons.push({p:[bottom[i],bottom[(i+1)%4],top[(i+1)%4],top[i]],c:shade(color,[.65,.78,.87,.7][i])});
+ for(const f of polygons){const points=clip3(f.p);if(points.length>=3)faces.push({points,color:f.c,depth:points.reduce((a,p)=>a+p.depth,0)/points.length})}
+}
+function groundLine(a,b,color,width=1){
+ let p=view3({...a,z:.2}),q=view3({...b,z:.2});
+ if(p.depth<NEAR&&q.depth<NEAR)return;
+ if(p.depth<NEAR)p=interpolate3(p,q,(NEAR-p.depth)/(q.depth-p.depth));
+ if(q.depth<NEAR)q=interpolate3(q,p,(NEAR-q.depth)/(p.depth-q.depth));
+ const x=projectView(p),y=projectView(q);ctx.strokeStyle=color;ctx.lineWidth=width;ctx.beginPath();ctx.moveTo(x.x,x.y);ctx.lineTo(y.x,y.y);ctx.stroke();
+}
+function vehicle(r,color){
+ const w=r.w,h=r.h;
+ paintPoly(clip3(corners({...r,w:w+4,h:h+3}).map(p=>({...p,z:.05}))),'#08111c77');
+ for(const x of[-w/2+1,w/2-1])for(const y of[-h*.28,h*.28])part(r,x,y,4,8,1,4,'#18202a');
+ part(r,0,0,w,h,3,7,color);part(r,0,1,w*.76,h*.46,10,5,shade(color,.9));
+ part(r,0,-h*.19,w*.7,3,11,4,'#294454');part(r,0,h*.23,w*.7,3,10,4,'#294454');
+ for(const x of[-w*.32,w*.32]){part(r,x,-h/2+1.6,4,2.6,9,.6,'#ffe7a4');part(r,x,h/2-1.6,4,2.6,9,.6,'#d66b6e')}
+}
+function drawScene(){
+ faces=[];
+ const sky=ctx.createLinearGradient(0,0,0,180);sky.addColorStop(0,'#3e5b73');sky.addColorStop(1,'#a1b7c3');ctx.fillStyle=sky;ctx.fillRect(0,0,W,H);
+ ctx.fillStyle='#293b4d';ctx.fillRect(0,126,W,H-126);
+ paintPoly(clip3([{x:0,y:0},{x:W,y:0},{x:W,y:H},{x:0,y:H}]),'#35485a','#667d92');
+ for(let y=20;y<H;y+=28)groundLine({x:8,y},{x:W-8,y},'#43586b',.7);
+ for(let x=20;x<W;x+=40)groundLine({x,y:8},{x,y:H-8},'#3c5062',.6);
+ if(target){
+  paintPoly(clip3(corners(target).map(p=>({...p,z:.25}))),'#62e9b550','#8bffd0');
+  const t=target,c=Math.cos(t.a),s=Math.sin(t.a),len=t.h/2-4;
+  ctx.setLineDash([3,3]);groundLine({x:t.x+s*len,y:t.y-c*len},{x:t.x-s*len,y:t.y+c*len},'#a1ffd0',1.2);ctx.setLineDash([]);
+  const p=project3({x:t.x,y:t.y,z:.4});if(p.depth>=NEAR&&p.x>10&&p.x<350&&p.y>75&&p.y<290){ctx.fillStyle='#c6ffe0';ctx.font='bold 14px system-ui';ctx.textAlign='center';ctx.fillText('P',p.x,p.y)}
+ }
+ const rim=[{x:4,y:200,w:8,h:400},{x:356,y:200,w:8,h:400},{x:180,y:4,w:344,h:8},{x:180,y:396,w:344,h:8}];
+ rim.forEach(r=>part(r,0,0,r.w,r.h,0,12,'#788b9a'));
+ for(let i=0;i<obstacles.length;i++){
+  const o=obstacles[i];if(o.kind==='car')vehicle(o,['#b57f83','#809da9','#b7b0a0'][i%3]);
+  else part(o,0,0,o.w,o.h,0,o.kind==='wall'?13:12,o.kind==='wall'?'#65798d':'#d8a265');
+ }
+ faces.sort((a,b)=>b.depth-a.depth);for(const f of faces)paintPoly(f.points,f.color,'#10243544');
+}
+function drawCockpit(now){
+ // Bonnet, windshield pillars and dashboard are visible from the driver's seat.
+ paintPoly([{x:70,y:297},{x:290,y:297},{x:333,y:340},{x:27,y:340}],'#416e91','#75a7ca');
+ groundHood();
+ paintPoly([{x:0,y:0},{x:13,y:0},{x:33,y:314},{x:0,y:347}],'#142332');
+ paintPoly([{x:347,y:0},{x:360,y:0},{x:360,y:347},{x:327,y:314}],'#142332');
+ paintPoly([{x:0,y:327},{x:66,y:320},{x:295,y:320},{x:360,y:333},{x:360,y:400},{x:0,y:400}],'#111e2b','#425263');
+ roundBox(191,345,115,39,7,'#07121c');
+ ctx.textAlign='left';ctx.fillStyle='#89eebc';ctx.font='bold 14px system-ui';
+ const gear=input('down')?'R':(input('up')||input('left')||input('right')?'D':'N');ctx.fillText(gear,201,362);
+ ctx.font='10px system-ui';ctx.fillStyle='#b0c4d4';ctx.fillText(hold>0?'주차 판정 중':'운전석 1인칭',224,362);
+ roundBox(201,371,94,4,2,'#293e50');if(hold>0)roundBox(201,371,94*Math.min(hold/HOLD_SECONDS,1),4,2,'#70efb6');
+ ctx.save();ctx.translate(98,366);ctx.rotate((Number(input('right'))-Number(input('left')))*.45);
+ ctx.strokeStyle='#050c14';ctx.lineWidth=12;ctx.beginPath();ctx.arc(0,0,31,0,Math.PI*2);ctx.stroke();
+ ctx.strokeStyle='#63717d';ctx.lineWidth=5;for(const a of[0,Math.PI,Math.PI/2]){ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(Math.cos(a)*27,Math.sin(a)*27);ctx.stroke()}
+ ctx.fillStyle='#243b4f';ctx.beginPath();ctx.arc(0,0,10,0,Math.PI*2);ctx.fill();ctx.restore();
+ if(now<flash&&Math.floor(now/80)%2===0){ctx.fillStyle='#ef626244';ctx.fillRect(0,0,W,328)}
+}
+function groundHood(){ctx.strokeStyle='#5e8fae';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(110,300);ctx.lineTo(90,320);ctx.moveTo(250,300);ctx.lineTo(270,320);ctx.stroke()}
+function draw(now){
+ CAMERA.x=car?car.x:180;CAMERA.y=car?car.y:350;CAMERA.a=car?car.a:0;
+ ctx.setTransform(2,0,0,2,0,0);ctx.clearRect(0,0,W,H);drawScene();
+ // A real rear view helps with reversing without changing the main cockpit camera.
+ roundBox(119,12,122,56,6,'#07131e');ctx.save();ctx.beginPath();ctx.rect(124,17,112,46);ctx.clip();
+ ctx.translate(236,17);ctx.scale(-112/360,46/400);const heading=CAMERA.a;CAMERA.a=heading+Math.PI;drawScene();CAMERA.a=heading;ctx.restore();
+ ctx.textAlign='center';ctx.fillStyle='#d0dce4';ctx.font='8px system-ui';ctx.fillText('후방 미러',180,77);
+ if(target&&car){
+  const dx=target.x-car.x,dy=target.y-car.y;
+  const right=dx*Math.cos(car.a)+dy*Math.sin(car.a),forward=dx*Math.sin(car.a)-dy*Math.cos(car.a);
+  const bearing=Math.atan2(right,forward),arrows=['↑','↗','→','↘','↓','↙','←','↖'];
+  const arrow=arrows[(Math.round(bearing/(Math.PI/4))+8)%8];
+  roundBox(129,85,102,23,7,'#0c2535df');ctx.font='bold 12px system-ui';ctx.fillStyle='#9bffd1';ctx.fillText(`목표 ${arrow}${forward<0?' 뒤쪽':''}`,180,101);
+ }
+ drawCockpit(now);
+}
+
 const keyMap={ArrowUp:'up',w:'up',W:'up',ArrowDown:'down',s:'down',S:'down',ArrowLeft:'left',a:'left',A:'left',ArrowRight:'right',d:'right',D:'right'};
 addEventListener('keydown',e=>{if(keyMap[e.key]&&state==='playing'){e.preventDefault();keys.add(keyMap[e.key]);syncButtons()}});
 addEventListener('keyup',e=>{if(keyMap[e.key]){keys.delete(keyMap[e.key]);syncButtons()}});
