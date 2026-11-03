@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>주차왕! 60초 챌린지</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#0c1725;color:#eef5ff;font-family:system-ui,'Malgun Gothic',sans-serif}button{font:inherit;cursor:pointer;touch-action:none;border:0;color:inherit}main{width:min(100%,440px);margin:auto;padding:16px 12px 20px}header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}h1{font-size:21px;margin:0}header span{color:#8cacca;font-size:12px}.dashboard{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:10px}.stat{background:#1a2c40;padding:10px 9px;border-radius:12px}.stat small{color:#9db1c9;font-size:12px}.stat strong{display:block;font-size:27px;font-variant-numeric:tabular-nums}.stat strong span{font-size:14px;margin-left:4px}.stage{position:relative;border:1px solid #3b5066;border-radius:16px;overflow:hidden;background:#243346}canvas{display:block;width:100%;height:auto;aspect-ratio:360/400}.overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#0a1523e8;padding:20px}.overlay[hidden]{display:none}.card{width:100%;text-align:center}.tag{color:#6bdfb2;font-size:12px;letter-spacing:2px}.card h2{font-size:27px;margin:10px 0 16px}.card p{font-size:14px;line-height:1.65;color:#bacbdc;margin:9px 0}.primary{background:#70efb6;color:#0a2920;border-radius:12px;padding:13px 24px;font-weight:800;margin-top:15px;min-height:48px}.big{font-size:52px;font-weight:800;color:#70efb6;margin:14px 0}.notice{height:34px;display:flex;align-items:center;justify-content:center;font-size:13px;color:#70efb6;text-align:center}.controls{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.drive{padding:12px 2px;background:#24384f;border:1px solid #415872;border-radius:12px;min-height:62px;font-size:12px;user-select:none;-webkit-user-select:none}.drive b{display:block;font-size:22px;line-height:1.2;margin-bottom:4px}.drive.active{background:#407b69;border-color:#70efb6}.drive:disabled{opacity:.5;cursor:default}.help{text-align:center;color:#93a9bf;font-size:11px;line-height:1.7;margin:12px 0 0}button:focus-visible{outline:3px solid #fcd477;outline-offset:2px}@media(max-width:370px){main{padding:10px 10px 14px}h1{font-size:19px}.card h2{font-size:24px}.card p{font-size:13px}}
+.title-button{display:block;width:100%;min-height:40px;margin-top:12px;border-radius:10px;background:#1a2c40;color:#bacbdc;font-size:13px}.title-button[hidden]{display:none}
+</style>
+</head>
+<body><main>
+<header><h1>주차왕!</h1><span id="level">기본 주차</span></header>
+<div class="dashboard"><div class="stat"><small>스테이지</small><strong id="stage-number">1</strong></div><div class="stat"><small>남은 시간</small><strong id="time">60.0<span>초</span></strong></div><div class="stat"><small>점수</small><strong id="score">0</strong></div></div>
+<div class="stage"><canvas id="game" width="720" height="800" aria-label="자동차 주차 게임 화면"></canvas>
+<section class="overlay" id="start"><div class="card"><div class="tag">PARKING CHALLENGE</div><h2>딱 1분, 주차에 도전!</h2><p>초록색 칸에 차를 맞추고<br>칸 방향에 맞춰 <b>0.7초 정지</b>하세요.<br>전진·후진 OK · 목표 칸과 나란히 주차</p><p>성공 +100점 · 연속 두 번째부터 +150점<br>벽·장애물 충돌 −3초, 연속 기록 초기화</p><p>A·D / ←→: 전진하며 회전<br>S / ↓ + 좌우: 후진하며 회전</p><button class="primary" id="begin">주차 시작</button></div></section>
+<section class="overlay" id="over" hidden><div class="card"><div class="tag">TIME UP</div><h2>주차 도전 종료!</h2><p>최종 점수</p><div class="big" id="final">0</div><button class="primary" id="again">다시 도전</button></div></section>
+</div>
+<div class="notice" id="notice" role="status" aria-live="polite">초록색 칸을 향해 출발하세요.</div>
+<div class="controls" aria-label="운전 버튼"><button class="drive" data-key="left" disabled aria-label="왼쪽으로 방향 전환"><b>↶</b>왼쪽 · A</button><button class="drive" data-key="up" disabled aria-label="전진"><b>↑</b>전진 · W</button><button class="drive" data-key="down" disabled aria-label="후진"><b>↓</b>후진 · S</button><button class="drive" data-key="right" disabled aria-label="오른쪽으로 방향 전환"><b>↷</b>오른쪽 · D</button></div>
+<button class="title-button" id="to-title" hidden>타이틀로 돌아가기</button>
+<p class="help">좌우 버튼만 누르면 전진 회전, 후진과 함께 누르면 후진 회전.<br>4단계부터 T자 → S자 → 평행주차 · 7단계부터 갓길 주차 차량</p>
+</main>
+<script>
+'use strict';
+const $=id=>document.getElementById(id),canvas=$('game'),ctx=canvas.getContext('2d');
+const W=360,H=400,CAR_W=20,CAR_H=34,SPEED=135,TURN=120*Math.PI/180,ANGLE=20*Math.PI/180,PARK_MARGIN=6,HOLD_SECONDS=.7;
+let state='ready',car,target,obstacles=[],score=0,streak=0,deadline=0,last=0,hold=0,latched=false,flash=0,messageUntil=0,round=1,mission='기본 주차',audio;
+const keys=new Set(),pointers=new Map(),buttons=[...document.querySelectorAll('.drive')];
+function input(k){return keys.has(k)||[...pointers.values()].includes(k)}
+function clearInput(){keys.clear();pointers.clear();syncButtons()}
+function syncButtons(){buttons.forEach(b=>b.classList.toggle('active',input(b.dataset.key)))}
+function say(text,seconds=1.8){$('notice').textContent=text;messageUntil=performance.now()+seconds*1000}
+function tone(){try{audio??=new(window.AudioContext||window.webkitAudioContext)();audio.resume();const o=audio.createOscillator(),g=audio.createGain();o.connect(g);g.connect(audio.destination);o.frequency.setValueAtTime(660,audio.currentTime);o.frequency.setValueAtTime(880,audio.currentTime+.09);g.gain.setValueAtTime(.06,audio.currentTime);g.gain.exponentialRampToValueAtTime(.001,audio.currentTime+.24);o.start();o.stop(audio.currentTime+.25)}catch(e){/* Sound may be unavailable in a restricted embedded browser. */}}
+function resetMap(){
+ car={x:180,y:350,a:0};hold=0;latched=false;clearInput();
+ const level=round,difficulty=Math.min((level-1)/8,1);
+ const positions=[80,180,280].filter(x=>!target||x!==target.x);
+ target={x:positions[Math.floor(Math.random()*positions.length)],y:65,w:Math.max(28,42-3*(level-1)),h:Math.max(54,68-3*(level-1)),a:0};
+ mission='기본 주차';
+ if(level>=3&&(level===3||Math.random()<.5)){target.a=Math.PI/2;mission='가로 목표'}
+ // Ordinary stages keep a centre lane and a top turning aisle open.
+ const slots=[{x:55,y:215},{x:305,y:215},{x:80,y:310},{x:280,y:310},
+              {x:112,y:255},{x:248,y:255},{x:65,y:160},{x:295,y:160}];
+ for(let i=slots.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[slots[i],slots[j]]=[slots[j],slots[i]]}
+ obstacles=slots.slice(0,Math.min(level+1,8)).map(p=>({...p,w:40+12*difficulty,h:32,a:0}));
+ if(level>=4){
+  const challenge=(level-4)%3;
+  if(challenge===2){
+   mission='평행주차';target.x=65;target.y=180;target.a=0;
+   const gap=96-12*difficulty;
+   obstacles=[{x:65,y:180-gap/2-24,w:40,h:48,a:0},{x:65,y:180+gap/2+24,w:40,h:48,a:0}];
+  }else if(challenge===0){
+   mission='T자 주차';target.x=75;target.y=110;target.a=Math.PI/2;
+   obstacles=[{x:65,y:280,w:110,h:216,a:0},{x:295,y:280,w:110,h:216,a:0},{x:180,y:30,w:336,h:32,a:0}];
+  }else{
+   mission='S자 주행';target.x=85;target.y=48;target.a=0;
+   // Alternating barriers force right, then left, before the final parking bay.
+   obstacles=[{x:99,y:260,w:182,h:30,a:0},{x:261,y:110,w:182,h:30,a:0}];
+  }
+ }
+ if(level>=7){
+  // Keep every original obstacle, then add separate roadside parked vehicles.
+  obstacles.forEach(o=>o.kind='wall');
+  let parkedCars;
+  if(mission==='T자 주차'){
+   parkedCars=[{x:137,y:300,w:24,h:44,a:0},
+               {x:223,y:235,w:24,h:44,a:0}];
+  }else if(mission==='S자 주행'){
+   parkedCars=[{x:330,y:235,w:24,h:44,a:0},
+               {x:30,y:180,w:24,h:44,a:0},
+               {x:330,y:50,w:24,h:44,a:0}];
+  }else{
+   parkedCars=[...[95,165,235,305].map(y=>({x:330,y,w:24,h:44,a:0})),
+               {x:112,y:300,w:24,h:44,a:0}];
+  }
+  obstacles.push(...parkedCars.map(o=>({...o,kind:'car'})));
+ }
+ 
+ $('stage-number').textContent=String(round);$('level').textContent=mission;
+}
+function start(){state='playing';score=0;streak=0;round=1;target=null;deadline=performance.now()+60000;flash=0;resetMap();$('score').textContent='0';$('start').hidden=true;$('over').hidden=true;$('to-title').hidden=false;buttons.forEach(b=>b.disabled=false);say('초록색 칸 안에서 방향을 맞춰 0.7초 정지!',3);try{audio??=new(window.AudioContext||window.webkitAudioContext)();audio.resume()}catch(e){}}
+function returnToTitle(){
+ state='ready';clearInput();buttons.forEach(b=>b.disabled=true);
+ score=0;streak=0;round=1;deadline=0;hold=0;flash=0;target=null;resetMap();
+ $('score').textContent='0';$('time').innerHTML='60.0<span>초</span>';
+ $('over').hidden=true;$('start').hidden=false;$('to-title').hidden=true;
+ say('초록색 칸을 향해 출발하세요.',100000);$('begin').focus();
+}
+function end(){state='over';hold=0;clearInput();buttons.forEach(b=>b.disabled=true);$('time').innerHTML='0.0<span>초</span>';$('final').textContent=String(score);$('over').hidden=false;say('친구와 최종 점수를 비교해 보세요.',100000);$('again').focus()}
+function corners(r,pad=0){const w=r.w/2+pad,h=r.h/2+pad,s=Math.sin(r.a||0),c=Math.cos(r.a||0);return[[-w,-h],[w,-h],[w,h],[-w,h]].map(([x,y])=>({x:r.x+x*c-y*s,y:r.y+x*s+y*c}))}
+function carRect(p=car){return{...p,w:CAR_W,h:CAR_H}}
+function intersects(a,b,pad=0){const ac=corners(a,pad),bc=corners(b);for(const poly of[ac,bc])for(let i=0;i<4;i++){const p=poly[i],q=poly[(i+1)%4],ax=-(q.y-p.y),ay=q.x-p.x;const aa=ac.map(v=>v.x*ax+v.y*ay),bb=bc.map(v=>v.x*ax+v.y*ay);if(Math.max(...aa)<Math.min(...bb)||Math.max(...bb)<Math.min(...aa))return false}return true}
+function collides(p,pad=0){const r=carRect(p);return corners(r,pad).some(v=>v.x<8||v.x>W-8||v.y<8||v.y>H-8)||obstacles.some(o=>intersects(r,o,pad))}
+function parked(){const delta=car.a-target.a,angle=Math.abs(Math.atan2(Math.sin(delta),Math.cos(delta)));const aligned=Math.min(angle,Math.abs(Math.PI-angle))<=ANGLE;const c=Math.cos(target.a),s=Math.sin(target.a);return aligned&&corners(carRect()).every(p=>{const dx=p.x-target.x,dy=p.y-target.y;return Math.abs(dx*c+dy*s)<=target.w/2+PARK_MARGIN&&Math.abs(-dx*s+dy*c)<=target.h/2+PARK_MARGIN})}
+function update(now,dt){if(state!=='playing')return;if(now>=deadline){end();return}
+ const steer=Number(input('right'))-Number(input('left'));
+ const drive=input('down')?-1:(input('up')||steer!==0?1:0);
+ const next={...car};if(drive){next.a+=steer*TURN*dt*drive;next.x+=Math.sin(next.a)*SPEED*dt*drive;next.y-=Math.cos(next.a)*SPEED*dt*drive}
+ const moved=next.x!==car.x||next.y!==car.y;
+ if(moved&&collides(next)){if(!latched){latched=true;deadline-=3000;streak=0;flash=now+450;say('충돌! −3초 · 연속 기록 초기화');if(now>=deadline){end();return}}}else car=next;
+ if(latched&&!collides(car,3))latched=false;
+ if(!drive&&parked())hold+=dt;else hold=0;
+ if(hold>=HOLD_SECONDS){const cleared=round,gain=streak>=1?150:100;score+=gain;streak++;round=cleared+1;$('score').textContent=String(score);tone();resetMap();say(`${cleared}단계 클리어! +${gain}점 → ${round}단계`,3)}
+ $('time').innerHTML=(Math.max(0,deadline-now)/1000).toFixed(1)+'<span>초</span>';
+ if(now>messageUntil)$('notice').textContent=hold>0?'정지 유지…':'초록색 칸 방향과 나란히 주차하세요.';
+}
+function roundBox(x,y,w,h,r,color){ctx.fillStyle=color;ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fill()}
+function draw(now){ctx.setTransform(2,0,0,2,0,0);ctx.clearRect(0,0,W,H);ctx.fillStyle='#253448';ctx.fillRect(0,0,W,H);
+ ctx.strokeStyle='#304257';ctx.lineWidth=1;for(let y=20;y<H;y+=28){ctx.beginPath();ctx.moveTo(8,y);ctx.lineTo(W-8,y);ctx.stroke()}
+ ctx.strokeStyle='#8295aa';ctx.lineWidth=4;ctx.strokeRect(6,6,W-12,H-12);
+ if(target){const t=target;ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.a);ctx.fillStyle='#60efae22';ctx.fillRect(-t.w/2,-t.h/2,t.w,t.h);ctx.strokeStyle='#72efb4';ctx.lineWidth=2;ctx.strokeRect(-t.w/2,-t.h/2,t.w,t.h);
+ // Centre guide shows the required vehicle axis, including horizontal goals.
+ ctx.setLineDash([4,4]);ctx.strokeStyle='#72efb477';ctx.beginPath();ctx.moveTo(0,-t.h/2+4);ctx.lineTo(0,t.h/2-4);ctx.stroke();ctx.setLineDash([]);ctx.restore();
+ ctx.fillStyle='#8ef8c5';ctx.font='bold 15px system-ui';ctx.textAlign='center';ctx.fillText('P',t.x,t.y+5);
+ const bottom=t.y+(Math.abs(Math.sin(t.a))*t.w+Math.abs(Math.cos(t.a))*t.h)/2;
+ if(hold>0){roundBox(t.x-23,bottom+7,46,5,2,'#142235');roundBox(t.x-23,bottom+7,46*Math.min(hold/HOLD_SECONDS,1),5,2,'#70efb6')}}
+ for(let i=0;i<obstacles.length;i++){
+  const o=obstacles[i];
+  if(o.kind==='car'){
+   ctx.save();ctx.translate(o.x,o.y);ctx.rotate(o.a||0);
+   const w=o.w,h=o.h;
+   roundBox(-w/2,-h/2,w,h,5,['#b57f83','#809da9','#b7b0a0'][i%3]);
+   roundBox(-w/2+4,-h/2+9,w-8,8,2,'#263b4c');
+   roundBox(-w/2+4,h/2-14,w-8,6,2,'#304555');
+   ctx.fillStyle='#ead7a4';ctx.fillRect(-w/2+3,-h/2+2,4,3);ctx.fillRect(w/2-7,-h/2+2,4,3);
+   ctx.fillStyle='#9c4148';ctx.fillRect(-w/2+3,h/2-4,4,2);ctx.fillRect(w/2-7,h/2-4,4,2);ctx.restore();
+  }else{
+   roundBox(o.x-o.w/2,o.y-o.h/2,o.w,o.h,5,o.kind==='wall'?'#526477':'#f2ae69');
+   ctx.fillStyle=o.kind==='wall'?'#728497':'#9d6234';ctx.fillRect(o.x-o.w/2+5,o.y-2,o.w-10,4);
+  }
+ }
+ if(car){ctx.save();ctx.translate(car.x,car.y);ctx.rotate(car.a);roundBox(-12,-11,5,9,2,'#09121e');roundBox(7,-11,5,9,2,'#09121e');roundBox(-12,7,5,8,2,'#09121e');roundBox(7,7,5,8,2,'#09121e');roundBox(-10,-17,20,34,5,now<flash&&Math.floor(now/80)%2===0?'#ff6369':'#6fb9ff');roundBox(-7,-9,14,8,2,'#183851');roundBox(-7,7,14,5,2,'#234965');ctx.fillStyle='#ffec9b';ctx.fillRect(-7,-16,4,3);ctx.fillRect(3,-16,4,3);ctx.restore()}
+}
+const keyMap={ArrowUp:'up',w:'up',W:'up',ArrowDown:'down',s:'down',S:'down',ArrowLeft:'left',a:'left',A:'left',ArrowRight:'right',d:'right',D:'right'};
+addEventListener('keydown',e=>{if(keyMap[e.key]&&state==='playing'){e.preventDefault();keys.add(keyMap[e.key]);syncButtons()}});
+addEventListener('keyup',e=>{if(keyMap[e.key]){keys.delete(keyMap[e.key]);syncButtons()}});
+addEventListener('blur',clearInput);document.addEventListener('visibilitychange',clearInput);
+buttons.forEach(b=>{b.addEventListener('pointerdown',e=>{if(state!=='playing')return;e.preventDefault();b.setPointerCapture(e.pointerId);pointers.set(e.pointerId,b.dataset.key);syncButtons()});for(const ev of['pointerup','pointercancel','lostpointercapture'])b.addEventListener(ev,e=>{pointers.delete(e.pointerId);syncButtons()});b.addEventListener('contextmenu',e=>e.preventDefault())});
+$('begin').onclick=start;$('again').onclick=start;$('to-title').onclick=returnToTitle;resetMap();
+function frame(now){const dt=Math.min((now-last)/1000,.033);last=now;update(now,dt);draw(now);requestAnimationFrame(frame)}requestAnimationFrame(frame);
+</script></body></html>
